@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  db:
+    container_name: git_pr_plugin_avito_tech_db
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  app:
+    container_name: git_pr_plugin_avito_tech_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_VERSION: ${APP_VERSION}
+      HTTP_PORT: ${HTTP_PORT}
+      PG_URL: ${PG_URL}
+      PG_POOL_MAX: ${PG_POOL_MAX}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
