@@ -20,26 +20,26 @@ services:
     networks:
       - app_network
 
-  app:
-    container_name: git_pr_plugin_avito_tech_app
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      APP_NAME: ${APP_NAME}
-      APP_VERSION: ${APP_VERSION}
-      HTTP_PORT: ${HTTP_PORT}
-      PG_URL: ${PG_URL}
-      PG_POOL_MAX: ${PG_POOL_MAX}
-      LOG_LEVEL: ${LOG_LEVEL}
-    ports:
-      - "${HTTP_PORT}:${HTTP_PORT}"
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - app_network
-    restart: unless-stopped
+#  app:
+#    container_name: git_pr_plugin_avito_tech_app
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    environment:
+#      APP_NAME: ${APP_NAME}
+#      APP_VERSION: ${APP_VERSION}
+#      HTTP_PORT: ${HTTP_PORT}
+#      PG_URL: ${PG_URL}
+#      PG_POOL_MAX: ${PG_POOL_MAX}
+#      LOG_LEVEL: ${LOG_LEVEL}
+#    ports:
+#      - "${HTTP_PORT}:${HTTP_PORT}"
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    networks:
+#      - app_network
+#    restart: unless-stopped
 
 volumes:
   postgres_data:
