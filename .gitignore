@@ -24,9 +24,39 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Environment variables and secrets
 .env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# Database data
+postgres_data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets and credentials
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+credentials.json
+token.json
+
+# Configuration files with sensitive data
+config/local.yml
+config/local.yaml
+config/secrets.yml
+config/secrets.yaml
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
