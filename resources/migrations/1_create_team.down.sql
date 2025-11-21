@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_team_name;
+DROP TABLE IF EXISTS public.team CASCADE;
