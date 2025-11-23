@@ -24,10 +24,12 @@ func Run(db *sqlx.DB) {
 	teamService := service.NewTeamService(teamRepo, userRepo, db)
 	userService := service.NewUserService(userRepo, teamRepo)
 	pullRequestService := service.NewPullRequestService(prReviewerRepo, pullRequestRepo, userRepo, db)
+	statisticsService := service.NewStatisticsService(userRepo, pullRequestRepo, prReviewerRepo, db)
 
 	teamController := controller.NewTeamController(teamService)
 	userController := controller.NewUserController(userService, pullRequestService)
 	pullRequestController := controller.NewPullRequestController(pullRequestService)
+	statisticsController := controller.NewStatisticsController(statisticsService)
 
 	r := chi.NewRouter()
 
@@ -45,6 +47,7 @@ func Run(db *sqlx.DB) {
 	r.Route("/users", func(r chi.Router) {
 		r.Post("/setIsActive", userController.SetIsActive)
 		r.Get("/getReview", userController.GetPullRequestsByReviewerID)
+		r.Post("/deactivate", statisticsController.DeactivateUsers)
 	})
 
 	r.Route("/pullRequest", func(r chi.Router) {
@@ -52,6 +55,8 @@ func Run(db *sqlx.DB) {
 		r.Post("/merge", pullRequestController.MergePullRequest)
 		r.Post("/reassign", pullRequestController.ReassignPrReviewer)
 	})
+
+	r.Get("/statistics", statisticsController.GetStatistics)
 
 	_ = teamService
 

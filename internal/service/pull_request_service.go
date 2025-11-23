@@ -147,7 +147,6 @@ func (s *PullRequestService) GetPullRequestsByReviewerID(ctx context.Context, re
 
 	log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Found %d pr_reviewers", len(prReviewers))
 
-	// Если пользователь не является ревьювером ни на одном PR, возвращаем пустой список
 	if len(prReviewers) == 0 {
 		log.Printf("[PullRequestService.GetPullRequestsByReviewerID] No PRs found for reviewer, returning empty list")
 		return dto.ToGetPullRequestsByReviewerIDResponse(reviewerID, []*model.PullRequest{}), nil
@@ -209,7 +208,6 @@ func (s *PullRequestService) ReassignPrReviewer(ctx context.Context, request *dt
 		return nil, apperror.NewInternalError(err)
 	}
 
-	// Проверяем, что PR не смержен
 	if pr.Status == model.PullRequestStatusMerged {
 		log.Printf("[PullRequestService.ReassignPrReviewer] Cannot reassign reviewers: PR is already merged")
 		return nil, apperror.NewPRMergedError()

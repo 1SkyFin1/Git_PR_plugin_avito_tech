@@ -37,16 +37,16 @@ type (
 func NewConfig() (*Config, error) {
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Println("⚠️  .env file not found, trying .env.example...")
+		fmt.Println(".env file not found, trying .env.example...")
 		err = godotenv.Load(".env.example")
 		if err != nil {
-			fmt.Printf("⚠️  .env.example file not found: %v\n", err)
-			fmt.Println("ℹ️  Continuing with environment variables and config.yml...")
+			fmt.Printf(".env.example file not found: %v\n", err)
+			fmt.Println(" Continuing with environment variables and config.yml...")
 		} else {
-			fmt.Println("✅ Loaded configuration from .env.example")
+			fmt.Println("Loaded configuration from .env.example")
 		}
 	} else {
-		fmt.Println("✅ Loaded configuration from .env")
+		fmt.Println("Loaded configuration from .env")
 	}
 
 	cfg := &Config{}
