@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type PrReviewerRepository struct {
@@ -58,7 +59,12 @@ func (r *PrReviewerRepository) CountByReviewerIDs(ctx context.Context, reviewerI
 		GROUP BY reviewer_id
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, reviewerIDs)
+	reviewerIDStrings := make([]string, len(reviewerIDs))
+	for i, id := range reviewerIDs {
+		reviewerIDStrings[i] = id.String()
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(reviewerIDStrings))
 	if err != nil {
 		return nil, fmt.Errorf("failed to count pr_reviewers: %w", err)
 	}

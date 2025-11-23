@@ -1,10 +1,12 @@
 package service
 
 import (
+	"Git_PR_plugin_avito_tech/internal/apperror"
 	"Git_PR_plugin_avito_tech/internal/dto"
 	"Git_PR_plugin_avito_tech/internal/model"
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 
 	"github.com/google/uuid"
@@ -28,22 +30,34 @@ func NewPullRequestService(prReviewerRepo PrReviewerRepository, pullRequestRepo 
 }
 
 func (s *PullRequestService) CreatePullRequest(ctx context.Context, request *dto.CreatePullRequestRequest) (*dto.CreatePullRequestResponse, error) {
+	log.Printf("[PullRequestService.CreatePullRequest] Starting for PR: %s, Author: %s", request.PullRequestID, request.AuthorID)
+	
 	author, err := s.userRepo.FindByID(ctx, request.AuthorID)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.CreatePullRequest] Error finding author: %v", err)
+		if apperror.IsNotFoundError(err) {
+			return nil, apperror.NewNotFoundError("Author")
+		}
+		return nil, apperror.NewInternalError(err)
 	}
+
+	log.Printf("[PullRequestService.CreatePullRequest] Author found: %s, Team: %s", author.Username, author.TeamID)
 
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		log.Printf("[PullRequestService.CreatePullRequest] Error beginning transaction: %v", err)
+		return nil, apperror.NewInternalError(fmt.Errorf("failed to begin transaction: %w", err))
 	}
 	defer tx.Rollback()
 
 	pr := dto.ToModelFromCreatePullRequestRequest(request)
 	err = s.pullRequestRepo.CreateTx(ctx, tx, pr)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.CreatePullRequest] Error creating PR: %v", err)
+		return nil, apperror.HandleDBError(err, "Pull Request")
 	}
+
+	log.Printf("[PullRequestService.CreatePullRequest] PR created successfully, finding reviewers...")
 
 	teamUsers, err := s.userRepo.FindAllByTeamID(ctx, author.TeamID)
 	if err != nil {
@@ -114,39 +128,64 @@ func (s *PullRequestService) CreatePullRequest(ctx context.Context, request *dto
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		log.Printf("[PullRequestService.CreatePullRequest] Error committing transaction: %v", err)
+		return nil, apperror.NewInternalError(fmt.Errorf("failed to commit transaction: %w", err))
 	}
 
+	log.Printf("[PullRequestService.CreatePullRequest] Success! PR: %s, Assigned reviewers: %v", pr.PullRequestID, assignedReviewerIDs)
 	return dto.ToCreatePullRequestResponse(pr, assignedReviewerIDs), nil
 }
 
 func (s *PullRequestService) GetPullRequestsByReviewerID(ctx context.Context, reviewerID uuid.UUID) (*dto.GetPullRequestsByReviewerIDResponse, error) {
+	log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Starting for reviewerID: %s", reviewerID)
+	
 	prReviewers, err := s.prReviewerRepo.FindAllByReviewerID(ctx, reviewerID)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Error finding pr_reviewers: %v", err)
+		return nil, apperror.NewInternalError(err)
+	}
+
+	log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Found %d pr_reviewers", len(prReviewers))
+
+	// Если пользователь не является ревьювером ни на одном PR, возвращаем пустой список
+	if len(prReviewers) == 0 {
+		log.Printf("[PullRequestService.GetPullRequestsByReviewerID] No PRs found for reviewer, returning empty list")
+		return dto.ToGetPullRequestsByReviewerIDResponse(reviewerID, []*model.PullRequest{}), nil
 	}
 
 	prReviewerIDs := make([]uuid.UUID, 0, len(prReviewers))
 	for _, prReviewer := range prReviewers {
-		prReviewerIDs = append(prReviewerIDs, prReviewer.ID)
+		prReviewerIDs = append(prReviewerIDs, prReviewer.PullRequestId)
 	}
 
 	pullRequests, err := s.pullRequestRepo.FindAllByPullRequestIDIn(ctx, prReviewerIDs)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Error finding pull requests: %v", err)
+		return nil, apperror.NewInternalError(err)
 	}
+	
+	log.Printf("[PullRequestService.GetPullRequestsByReviewerID] Success! Found %d pull requests", len(pullRequests))
 	return dto.ToGetPullRequestsByReviewerIDResponse(reviewerID, pullRequests), nil
 }
 
 func (s *PullRequestService) MergePullRequest(ctx context.Context, request *dto.MergePullRequestRequest) (*dto.MergePullRequestResponse, error) {
+	log.Printf("[PullRequestService.MergePullRequest] Starting for PR: %s", request.PullRequestID)
+
 	pr, err := s.pullRequestRepo.MergePullRequest(ctx, request.PullRequestID)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.MergePullRequest] Error merging PR: %v", err)
+		if apperror.IsNotFoundError(err) {
+			return nil, apperror.NewNotFoundError("Pull Request")
+		}
+		return nil, apperror.NewInternalError(err)
 	}
+
+	log.Printf("[PullRequestService.MergePullRequest] PR merged: %s, fetching reviewers...", pr.PullRequestName)
 
 	prReviewers, err := s.prReviewerRepo.FindAllByPRID(ctx, pr.PullRequestID)
 	if err != nil {
-		return nil, err
+		log.Printf("[PullRequestService.MergePullRequest] Error fetching reviewers: %v", err)
+		return nil, apperror.NewInternalError(err)
 	}
 
 	assignedReviewerIDs := make([]uuid.UUID, 0, 2)
@@ -154,18 +193,37 @@ func (s *PullRequestService) MergePullRequest(ctx context.Context, request *dto.
 		assignedReviewerIDs = append(assignedReviewerIDs, prReviewer.ReviewerId)
 	}
 
+	log.Printf("[PullRequestService.MergePullRequest] Success! PR: %s, Reviewers: %d", pr.PullRequestID, len(assignedReviewerIDs))
 	return dto.ToMergePullRequestResponse(pr, assignedReviewerIDs), nil
 }
 
 func (s *PullRequestService) ReassignPrReviewer(ctx context.Context, request *dto.ReassignPrReviewerRequest) (*dto.ReassignPrReviewerResponse, error) {
+	log.Printf("[PullRequestService.ReassignPrReviewer] Starting for PR: %s, OldReviewer: %s", request.PullRequestID, request.OldReviewerID)
+	
 	pr, err := s.pullRequestRepo.FindByID(ctx, request.PullRequestID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find pull request: %w", err)
+		log.Printf("[PullRequestService.ReassignPrReviewer] Error finding PR: %v", err)
+		if apperror.IsNotFoundError(err) {
+			return nil, apperror.NewNotFoundError("Pull Request")
+		}
+		return nil, apperror.NewInternalError(err)
 	}
+
+	// Проверяем, что PR не смержен
+	if pr.Status == model.PullRequestStatusMerged {
+		log.Printf("[PullRequestService.ReassignPrReviewer] Cannot reassign reviewers: PR is already merged")
+		return nil, apperror.NewPRMergedError()
+	}
+
+	log.Printf("[PullRequestService.ReassignPrReviewer] PR found: %s, Status: %s", pr.PullRequestName, pr.Status)
 
 	oldReviewer, err := s.userRepo.FindByID(ctx, request.OldReviewerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find old reviewer: %w", err)
+		log.Printf("[PullRequestService.ReassignPrReviewer] Error finding old reviewer: %v", err)
+		if apperror.IsNotFoundError(err) {
+			return nil, apperror.NewNotFoundError("Reviewer")
+		}
+		return nil, apperror.NewInternalError(err)
 	}
 
 	tx, err := s.db.BeginTxx(ctx, nil)
@@ -224,12 +282,14 @@ func (s *PullRequestService) ReassignPrReviewer(ctx context.Context, request *dt
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		log.Printf("[PullRequestService.ReassignPrReviewer] Error committing transaction: %v", err)
+		return nil, apperror.NewInternalError(fmt.Errorf("failed to commit transaction: %w", err))
 	}
 
 	updatedReviewers, err := s.prReviewerRepo.FindAllByPRID(ctx, request.PullRequestID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get updated reviewers: %w", err)
+		log.Printf("[PullRequestService.ReassignPrReviewer] Error getting updated reviewers: %v", err)
+		return nil, apperror.NewInternalError(err)
 	}
 
 	assignedReviewerIDs := make([]uuid.UUID, 0, len(updatedReviewers))
@@ -237,5 +297,6 @@ func (s *PullRequestService) ReassignPrReviewer(ctx context.Context, request *dt
 		assignedReviewerIDs = append(assignedReviewerIDs, reviewer.ReviewerId)
 	}
 
-	return dto.ToReassignPrReviewerResponse(pr, assignedReviewerIDs, oldReviewer.UserID), nil
+	log.Printf("[PullRequestService.ReassignPrReviewer] Success! PR: %s, Old: %s, New: %s", request.PullRequestID, request.OldReviewerID, newReviewer.UserID)
+	return dto.ToReassignPrReviewerResponse(pr, assignedReviewerIDs, newReviewer.UserID), nil
 }

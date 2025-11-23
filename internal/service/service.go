@@ -10,7 +10,6 @@ import (
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, user *model.User) error
 	CreateTx(ctx context.Context, tx *sqlx.Tx, user *model.User) error
 	CreateManyTx(ctx context.Context, tx *sqlx.Tx, users []*model.User) error
 	SetIsActive(ctx context.Context, userID uuid.UUID, isActive bool) (*model.User, error)
@@ -19,7 +18,6 @@ type UserRepository interface {
 }
 
 type TeamRepository interface {
-	Create(ctx context.Context, teamName string) (*model.Team, error)
 	CreateTx(ctx context.Context, tx *sqlx.Tx, teamName string) (*model.Team, error)
 	FindByID(ctx context.Context, teamID uuid.UUID) (*model.Team, error)
 	FindByName(ctx context.Context, teamName string) (*model.Team, error)

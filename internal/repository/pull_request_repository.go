@@ -8,14 +8,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type PullRequestRepository struct {
 	db *sqlx.DB
 }
 
-func NewPullRequestRepository(db *sqlx.DB) PullRequestRepository {
-	return PullRequestRepository{
+func NewPullRequestRepository(db *sqlx.DB) *PullRequestRepository {
+	return &PullRequestRepository{
 		db: db,
 	}
 }
@@ -43,10 +44,19 @@ func (r *PullRequestRepository) FindByID(ctx context.Context, pullRequestID uuid
 }
 
 func (r *PullRequestRepository) FindAllByPullRequestIDIn(ctx context.Context, prPullRequestIDs []uuid.UUID) ([]*model.PullRequest, error) {
-	query := `SELECT * FROM pull_request WHERE pull_request_id IN $1`
+	if len(prPullRequestIDs) == 0 {
+		return []*model.PullRequest{}, nil
+	}
+
+	query := `SELECT * FROM pull_request WHERE pull_request_id = ANY($1)`
+
+	prIDStrings := make([]string, len(prPullRequestIDs))
+	for i, id := range prPullRequestIDs {
+		prIDStrings[i] = id.String()
+	}
 
 	var prs []*model.PullRequest
-	err := r.db.SelectContext(ctx, &prs, query, prPullRequestIDs)
+	err := r.db.SelectContext(ctx, &prs, query, pq.Array(prIDStrings))
 	if err != nil {
 		return nil, fmt.Errorf("failed to find pull requests by pull request ids: %w", err)
 	}
@@ -55,8 +65,9 @@ func (r *PullRequestRepository) FindAllByPullRequestIDIn(ctx context.Context, pr
 
 func (r *PullRequestRepository) MergePullRequest(ctx context.Context, pullRequestID uuid.UUID) (*model.PullRequest, error) {
 	query := `
-			INSERT INTO pull_request (status, merged_at) VALUES ($1, $2) 
-			WHERE pull_request_id = :$3
+			UPDATE pull_request 
+			SET status = $1, merged_at = $2 
+			WHERE pull_request_id = $3
 			RETURNING *`
 
 	var pullRequest model.PullRequest

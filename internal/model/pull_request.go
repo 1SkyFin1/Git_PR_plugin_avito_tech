@@ -19,5 +19,5 @@ type PullRequest struct {
 	AuthorID        uuid.UUID         `json:"author_id" db:"author_id"`
 	Status          PullRequestStatus `json:"status" db:"status"`
 	CreatedAt       time.Time         `json:"created_at" db:"created_at"`
-	MergedAt        time.Time         `json:"merged_at" db:"merged_at"`
+	MergedAt        *time.Time        `json:"merged_at,omitempty" db:"merged_at"`
 }

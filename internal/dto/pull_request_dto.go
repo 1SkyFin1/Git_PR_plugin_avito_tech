@@ -37,7 +37,7 @@ type GetPullRequestsByReviewerIDResponse struct {
 
 type MergePullRequestResponse struct {
 	PR       PullRequestFullInfoDto `json:"pr"`
-	MergedAt time.Time              `json:"mergedAt"`
+	MergedAt *time.Time             `json:"mergedAt,omitempty"`
 }
 
 type ReassignPrReviewerResponse struct {
@@ -52,8 +52,6 @@ type PullRequestFullInfoDto struct {
 	Status            model.PullRequestStatus `json:"status"`
 	AssignedReviewers []uuid.UUID             `json:"assigned_reviewers"`
 }
-
-//TODO я унифицировал PullRequestFullInfoDto для того, чтобы можно было не писать новую ДТО, надо отразить это в ридми
 
 type PullRequestDTO struct {
 	PullRequestID   uuid.UUID               `json:"pull_request_id"`

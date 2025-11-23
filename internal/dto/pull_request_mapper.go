@@ -15,6 +15,7 @@ func ToModelFromCreatePullRequestRequest(request *CreatePullRequestRequest) *mod
 		PullRequestID:   request.PullRequestID,
 		PullRequestName: request.PullRequestName,
 		AuthorID:        request.AuthorID,
+		Status:          model.PullRequestStatusOpen,
 	}
 }
 
