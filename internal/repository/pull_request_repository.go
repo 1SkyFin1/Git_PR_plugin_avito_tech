@@ -77,3 +77,73 @@ func (r *PullRequestRepository) MergePullRequest(ctx context.Context, pullReques
 	}
 	return &pullRequest, nil
 }
+
+func (r *PullRequestRepository) GetTotalPullRequests(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM pull_request`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total pull requests: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *PullRequestRepository) GetOpenPullRequests(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM pull_request WHERE status = $1`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query, model.PullRequestStatusOpen)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get open pull requests: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *PullRequestRepository) GetMergedPullRequests(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM pull_request WHERE status = $1`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query, model.PullRequestStatusMerged)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get merged pull requests: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *PullRequestRepository) FindOpenPRsByReviewerIDs(ctx context.Context, reviewerIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(reviewerIDs) == 0 {
+		return []uuid.UUID{}, nil
+	}
+
+	query := `
+		SELECT DISTINCT pr.pull_request_id
+		FROM pull_request pr
+		INNER JOIN pr_reviewer prr ON pr.pull_request_id = prr.pull_request_id
+		WHERE pr.status = $1 AND prr.reviewer_id = ANY($2)
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, model.PullRequestStatusOpen, pq.Array(reviewerIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find open PRs by reviewer IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var prIDs []uuid.UUID
+	for rows.Next() {
+		var prID uuid.UUID
+		if err := rows.Scan(&prID); err != nil {
+			return nil, fmt.Errorf("failed to scan PR ID: %w", err)
+		}
+		prIDs = append(prIDs, prID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return prIDs, nil
+}

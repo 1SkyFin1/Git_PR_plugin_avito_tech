@@ -15,6 +15,9 @@ type UserRepository interface {
 	SetIsActive(ctx context.Context, userID uuid.UUID, isActive bool) (*model.User, error)
 	FindByID(ctx context.Context, userID uuid.UUID) (*model.User, error)
 	FindAllByTeamID(ctx context.Context, teamID uuid.UUID) ([]*model.User, error)
+	GetTotalUsers(ctx context.Context) (int, error)
+	GetActiveUsers(ctx context.Context) (int, error)
+	DeactivateUsersTx(ctx context.Context, tx *sqlx.Tx, userIDs []uuid.UUID) ([]uuid.UUID, error)
 }
 
 type TeamRepository interface {
@@ -29,6 +32,10 @@ type PrReviewerRepository interface {
 	CreateTx(ctx context.Context, tx *sqlx.Tx, prReviewer *model.PrReviewer) error
 	CountByReviewerIDs(ctx context.Context, reviewerIDs []uuid.UUID) (map[uuid.UUID]int, error)
 	DeleteByPRIDAndReviewerIDTx(ctx context.Context, tx *sqlx.Tx, prID uuid.UUID, reviewerID uuid.UUID) error
+	GetTotalAssignments(ctx context.Context) (int, error)
+	GetUserStatisticsData(ctx context.Context, limit int) ([]*model.UserStatisticsData, error)
+	GetPRStatisticsData(ctx context.Context, limit int) ([]*model.PRStatisticsData, error)
+	DeleteByReviewerIDsTx(ctx context.Context, tx *sqlx.Tx, reviewerIDs []uuid.UUID) (int, error)
 }
 
 type PullRequestRepository interface {
@@ -36,4 +43,8 @@ type PullRequestRepository interface {
 	FindByID(ctx context.Context, pullRequestID uuid.UUID) (*model.PullRequest, error)
 	FindAllByPullRequestIDIn(ctx context.Context, prPullRequestIDs []uuid.UUID) ([]*model.PullRequest, error)
 	MergePullRequest(ctx context.Context, pullRequestID uuid.UUID) (*model.PullRequest, error)
+	GetTotalPullRequests(ctx context.Context) (int, error)
+	GetOpenPullRequests(ctx context.Context) (int, error)
+	GetMergedPullRequests(ctx context.Context) (int, error)
+	FindOpenPRsByReviewerIDs(ctx context.Context, reviewerIDs []uuid.UUID) ([]uuid.UUID, error)
 }

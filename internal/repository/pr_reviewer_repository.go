@@ -117,3 +117,88 @@ func (r *PrReviewerRepository) DeleteByPRIDAndReviewerIDTx(ctx context.Context, 
 
 	return nil
 }
+
+func (r *PrReviewerRepository) GetUserStatisticsData(ctx context.Context, limit int) ([]*model.UserStatisticsData, error) {
+	query := `
+		SELECT 
+			u.user_id,
+			u.username,
+			t.team_name,
+			COUNT(pr.pull_request_id) as total_assignments,
+			COUNT(CASE WHEN pr.status = 'OPEN' THEN 1 END) as open_assignments,
+			COUNT(CASE WHEN pr.status = 'MERGED' THEN 1 END) as completed_assignments
+		FROM "user" u
+		INNER JOIN team t ON u.team_id = t.id
+		LEFT JOIN pr_reviewer prr ON u.user_id = prr.reviewer_id
+		LEFT JOIN pull_request pr ON prr.pull_request_id = pr.pull_request_id
+		WHERE u.is_active = true
+		GROUP BY u.user_id, u.username, t.team_name
+		ORDER BY total_assignments DESC
+		LIMIT $1
+	`
+
+	var results []*model.UserStatisticsData
+	err := r.db.SelectContext(ctx, &results, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user statistics: %w", err)
+	}
+
+	return results, nil
+}
+
+func (r *PrReviewerRepository) GetPRStatisticsData(ctx context.Context, limit int) ([]*model.PRStatisticsData, error) {
+	query := `
+		SELECT 
+			pr.pull_request_id,
+			pr.pull_request_name,
+			u.username as author_username,
+			pr.status,
+			COUNT(prr.reviewer_id) as reviewers_count
+		FROM pull_request pr
+		INNER JOIN "user" u ON pr.author_id = u.user_id
+		LEFT JOIN pr_reviewer prr ON pr.pull_request_id = prr.pull_request_id
+		GROUP BY pr.pull_request_id, pr.pull_request_name, u.username, pr.status
+		ORDER BY reviewers_count DESC
+		LIMIT $1
+	`
+
+	var results []*model.PRStatisticsData
+	err := r.db.SelectContext(ctx, &results, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PR statistics: %w", err)
+	}
+
+	return results, nil
+}
+
+func (r *PrReviewerRepository) GetTotalAssignments(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM pr_reviewer`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total assignments: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *PrReviewerRepository) DeleteByReviewerIDsTx(ctx context.Context, tx *sqlx.Tx, reviewerIDs []uuid.UUID) (int, error) {
+	if len(reviewerIDs) == 0 {
+		return 0, nil
+	}
+
+	query := `DELETE FROM pr_reviewer WHERE reviewer_id = ANY($1)`
+
+	result, err := tx.ExecContext(ctx, query, pq.Array(reviewerIDs))
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete pr_reviewers: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
+}

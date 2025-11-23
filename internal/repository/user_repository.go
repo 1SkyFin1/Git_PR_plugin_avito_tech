@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type UserRepository struct {
@@ -105,4 +106,62 @@ func (r *UserRepository) FindAllByTeamID(ctx context.Context, teamID uuid.UUID) 
 		return nil, fmt.Errorf("failed to find users with teamID %s: %w", teamID, err)
 	}
 	return users, nil
+}
+
+func (r *UserRepository) GetTotalUsers(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM "user"`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total users: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *UserRepository) GetActiveUsers(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM "user" WHERE is_active = true`
+
+	var count int
+	err := r.db.GetContext(ctx, &count, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get active users: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *UserRepository) DeactivateUsersTx(ctx context.Context, tx *sqlx.Tx, userIDs []uuid.UUID) ([]uuid.UUID, error) {
+	if len(userIDs) == 0 {
+		return []uuid.UUID{}, nil
+	}
+
+	query := `
+		UPDATE "user"
+		SET is_active = false, updated_at = NOW()
+		WHERE user_id = ANY($1) AND is_active = true
+		RETURNING user_id
+	`
+
+	rows, err := tx.QueryContext(ctx, query, pq.Array(userIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to deactivate users: %w", err)
+	}
+	defer rows.Close()
+
+	var deactivatedIDs []uuid.UUID
+	for rows.Next() {
+		var userID uuid.UUID
+		if err := rows.Scan(&userID); err != nil {
+			return nil, fmt.Errorf("failed to scan user_id: %w", err)
+		}
+		deactivatedIDs = append(deactivatedIDs, userID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return deactivatedIDs, nil
 }
