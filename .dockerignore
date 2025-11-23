@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Environment files (используем .env.example)
+.env
+.env.local
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+app
+
+# Test files
+*_test.go
+*.test
+*.out
+coverage.*
+
+# Documentation
+README.md
+*.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Database data
+postgres_data/
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp

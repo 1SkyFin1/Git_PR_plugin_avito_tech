@@ -20,25 +20,6 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) Create(ctx context.Context, user *model.User) error {
-	query := `
-		INSERT INTO "user" (username, team_id, is_active)
-		VALUES ($1, $2, $3)
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		user.Username,
-		user.TeamID,
-		user.IsActive,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
-	}
-
-	return nil
-}
-
 func (r *UserRepository) CreateTx(ctx context.Context, tx *sqlx.Tx, user *model.User) error {
 	query := `
 		INSERT INTO "user" (username, team_id, is_active)
@@ -85,8 +66,11 @@ func (r *UserRepository) SetIsActive(ctx context.Context, userID uuid.UUID, isAc
 	`
 
 	var user model.User
-	err := r.db.QueryRowxContext(ctx, query, userID, isActive).StructScan(&user)
+	err := r.db.QueryRowxContext(ctx, query, isActive, userID).StructScan(&user)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
 		return nil, fmt.Errorf("failed to set isActive: %w", err)
 	}
 
@@ -104,7 +88,7 @@ func (r *UserRepository) FindByID(ctx context.Context, userID uuid.UUID) (*model
 	err := r.db.GetContext(ctx, &user, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("user not found")
+			return nil, sql.ErrNoRows
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}

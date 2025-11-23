@@ -10,18 +10,6 @@ func ToUserResponse(user *model.User, teamName string) *UserResponse {
 	return &UserResponse{*ToUserInfoDto(user, teamName)}
 }
 
-func ToUserModelFromRequest(req *CreateUserRequest) *model.User {
-	if req == nil {
-		return nil
-	}
-
-	return &model.User{
-		Username: req.Username,
-		TeamID:   req.TeamID,
-		IsActive: true,
-	}
-}
-
 func ToUserModelFromMemberDto(member *MemberDto, teamID uuid.UUID) *model.User {
 	if member == nil {
 		return nil
